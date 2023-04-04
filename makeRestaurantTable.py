@@ -208,7 +208,7 @@ user_collection = db["user_table"]  # "user_table"이라는 새 컬렉션을 생
 fs = gridfs.GridFS(db)
 
 num_users = 25
-num_restaurants = 406
+num_restaurants = 304
 
 # user_rating_table과 user_table이 비어있다면 40명의 사용자 정보와 평가를 생성하고 MongoDB에 저장합니다.
 if user_rating_collection.count_documents({}) == 0 and user_collection.count_documents({}) == 0:
@@ -263,7 +263,6 @@ sejong_univ_coord = (37.550017, 127.074043)
 
 if restaurant_collection.count_documents({}) == 0:
 # 페이지네이션과 함께 API 요청을 보냅니다.
-    j=0
     # 검색할 키워드 별로 카카오맵 API를 활용한 검색을 진행 후 식당 테이블에 데이터 저장
     for x,y in zip(xs,ys):
         params["x"] = x;
@@ -307,7 +306,6 @@ if restaurant_collection.count_documents({}) == 0:
 
                     # API 응답에서 음식점 정보를 추출합니다.
                     restaurant = {
-                        "restaurantId": j,  # 페이지와 인덱스를 기반으로 한 고유 식별자
                         "name": item["place_name"],
                         "xPosition" : item["x"],
                         "yPosition" : item["y"],
