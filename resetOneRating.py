@@ -7,7 +7,7 @@ user_rating_collection = db["user_rating_table"] # "user_rating_table"이라는 
 
 
 # 특정 restaurantId 선택
-specified_userId = 22
+specified_userId = "0"
 
 
 query = {"userId": specified_userId}

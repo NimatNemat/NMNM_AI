@@ -1,134 +1,91 @@
 import pandas as pd
-import matplotlib.pyplot as plt
-from surprise import Dataset, Reader, KNNBasic
-from surprise.model_selection import train_test_split
-from surprise import accuracy
-from sklearn.cluster import KMeans
-import pymongo
+from pymongo import MongoClient
+import numpy as np
 
-# 사용자별로 음식점 평가 데이터를 가져옵니다.
+# 데이터베이스에서 사용자 평점 테이블을 가져오는 함수
 def get_user_rating_table():
-    client = pymongo.MongoClient("mongodb://localhost:27017/")
-    db = client["restaurant_db"]
+    client = MongoClient("mongodb+srv://dongun3m:13792346asd@seondongun.cvaxniv.mongodb.net/test")
+    db = client["restaurant_db2"]
     user_rating_table = db["user_rating_table"]
     data = []
     for row in user_rating_table.find():
         data.append(row)
     return data
 
-# 사용자별로 평가하지 않은 음식점 목록을 가져옵니다.
-def get_zero_rated_restaurants(user_rating_data, user_id, restaurants):
-    zero_rated_restaurants = set(row["restaurant_id"] for row in user_rating_data if row["user_id"] == user_id and row["rating"] == 0)
-    return zero_rated_restaurants
+# 코사인 유사도를 계산하는 함수
+def cosine_similarity(a, b):
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
 
-# 사용자별로 평가하지 않은 음식점에 대한 예측 평점을 계산합니다.
-def predict_unrated_restaurants(algo, user_zero_rated_restaurants):
-    predictions = []
-    for user, zero_rated_restaurants in user_zero_rated_restaurants.items():
-        for restaurant in zero_rated_restaurants:
-            pred = algo.predict(user, restaurant)
-            predictions.append([user, restaurant, pred.est])
-    return pd.DataFrame(predictions, columns=["user_id", "restaurant_id", "predicted_rating"])
+    if norm_a == 0 or norm_b == 0:
+        return 0
 
-# 데이터 로드
-user_rating_data = get_user_rating_table()
-users = list(set(row["user_id"] for row in user_rating_data))
-restaurants = list(set(row["restaurant_id"] for row in user_rating_data))
+    return np.dot(a, b) / (norm_a * norm_b)
 
-# 사용자별로 0점으로 설정된 음식점 목록을 가져옵니다.
-user_zero_rated_restaurants = {user: get_zero_rated_restaurants(user_rating_data, user, restaurants) for user in users}
+# 사용자 평점을 예측하는 함수
+def predict_user_ratings(user_id):
+    # 사용자 평점 데이터 불러오기
+    user_rating_data = get_user_rating_table()
+    ratings_df = pd.DataFrame(user_rating_data)
 
-# 데이터를 Surprise 라이브러리에서 사용할 수 있는 형태로 변환합니다.
-ratings_df = pd.DataFrame(user_rating_data)
-# ratings_df['user_id'] = ratings_df['user_id'].astype(str)  # user_id를 문자열로 변환합니다. 추후 문자열 id로 실제 입력받을 때 추가해야하는 코드
+    # 사용자-음식점 행렬 만들기
+    user_restaurant_matrix = ratings_df.pivot_table(index='userId', columns='restaurantId', values='rating', fill_value=0)
 
-reader = Reader(rating_scale=(1, 5))
-data = Dataset.load_from_df(ratings_df[['user_id', 'restaurant_id', 'rating']], reader)
+    # 유사도 행렬 계산
+    similarity_matrix = user_restaurant_matrix.apply(
+        lambda row: cosine_similarity(row, user_restaurant_matrix.loc[user_id]), axis=1)
 
-# 데이터를 학습 및 테스트셋으로 분할합니다.
-trainset, testset = train_test_split(data, test_size=0.2)
+    # 유사도 행렬에서 대상 사용자 제거
+    similarity_matrix.drop(user_id, inplace=True)
 
-# 사용자 기반 협업 필터링 알고리즘을 사용해 모델을 학습합니다.
-algo = KNNBasic(sim_options={'user_based': True})
-# algo = KNNBasic(sim_options={'name': 'cosine', 'user_based': True}) # 추후 문자열 id로 실제 입력받을 때 추가해야하는 코드
-algo.fit(trainset)
+    # 주어진 사용자가 평가하지 않은 음식점 찾기
+    target_user_ratings = user_restaurant_matrix.loc[user_id]
+    unrated_restaurants = target_user_ratings[target_user_ratings == 0].index
 
-# 테스트셋에 대한 예측을 수행하고 정확도를 계산합니다.
-test_pred = algo.test(testset)
-print("Test RMSE: ", accuracy.rmse(test_pred))
+    # 평가하지 않은 음식점에 대한 평점 예측
+    predicted_ratings = []
+    for restaurant in unrated_restaurants:
+        # 유사한 사용자들의 평점 가중 평균 구하기
+        ratings_from_similar_users = user_restaurant_matrix.loc[similarity_matrix.index, restaurant]
+        weighted_ratings = ratings_from_similar_users * similarity_matrix
+        predicted_rating = weighted_ratings.sum() / np.abs(similarity_matrix).sum()
+        predicted_ratings.append((restaurant, predicted_rating))
 
-# 0점으로 설정된 음식점에 대해 평점을 예측합니다.
-predicted_zero_rated_restaurants = predict_unrated_restaurants(algo, user_zero_rated_restaurants)
+    # 원래 평점과 예측 평점 결합
+    original_ratings = target_user_ratings[target_user_ratings != 0]
+    predicted_ratings_df = pd.DataFrame(predicted_ratings, columns=['restaurantId', 'rating']).set_index('restaurantId')
+    all_ratings = pd.concat([original_ratings, predicted_ratings_df], axis=0)
 
-# 클러스터링을 위한 사용자별 예측 평점 평균을 계산합니다.
-user_predicted_ratings = predicted_zero_rated_restaurants.groupby("user_id")["predicted_rating"].mean().reset_index()
+    # 결합된 평점을 음식점 인덱스로 정렬
+    all_ratings.sort_index(inplace=True)
 
-# 사용자를 클러스터로 분류합니다.
-kmeans = KMeans(n_clusters=3,n_init=10)
-user_predicted_ratings["cluster"] = kmeans.fit_predict(user_predicted_ratings[["predicted_rating"]])
+    return all_ratings
 
+# 출력 옵션 설정
+pd.set_option('display.max_columns', None)
+pd.set_option('display.expand_frame_repr', False)
+pd.set_option('max_colwidth', None)
+pd.set_option('display.max_rows', None)
 
-# 새로운 클러스터링 결과 시각화 코드를 추가합니다.
-plt.figure(figsize=(12, 8))
-plt.scatter(user_predicted_ratings["user_id"], user_predicted_ratings["predicted_rating"], c=user_predicted_ratings["cluster"], cmap='viridis')
+# 사용자 ID 설정
+your_user_id = "0"
+# 사용자 ID를 변경하여 평점을 예측하려는 사용자에 대해 예측 수행
+predicted_ratings = predict_user_ratings(your_user_id)
+print(predicted_ratings)
+print("------------------------------------------")
 
-# 각 점에 user_id와 그룹 번호를 표시합니다.
-for index, row in user_predicted_ratings.iterrows():
-    user_id = row["user_id"]
-    cluster_id = int(row["cluster"])
-    plt.annotate(f"{user_id} (Group {cluster_id})", (row["user_id"], row["predicted_rating"]), fontsize=9)
+# 원래 평점이 있는 음식점 제거 (예측 평점에 NaN인 경우)
+predicted_ratings_only = predicted_ratings.dropna(subset=['rating'])
 
-plt.title('User Clustering Based on Predicted Ratings')
-plt.xlabel('User ID')
-plt.ylabel('Predicted Rating')
-plt.show()
+# 예측 평점으로 정렬 (내림차순)
+sorted_predicted_ratings = predicted_ratings_only.sort_values(by='rating', ascending=False)
 
+print(sorted_predicted_ratings)
+print("------------------------------------------")
 
-# MongoDB에 연결합니다.
-client = pymongo.MongoClient("mongodb://localhost:27017/")
-db = client["restaurant_db"]
+# 예측 평점이 0인 음식점 제거
+filtered_predicted_ratings = sorted_predicted_ratings[sorted_predicted_ratings['rating'] > 0]
 
-# groups와 group_members 테이블을 생성합니다.
-groups = db["groups"]
-group_members = db["group_members"]
+# 필터링하고 정렬된 예측 평점 출력
+print(filtered_predicted_ratings)
 
-# 클러스터링된 사용자들을 그룹 테이블에 추가합니다.
-group_ids = []
-
-# 그룹 테이블이 비어 있는지 확인합니다.
-if groups.count_documents({}) == 0:
-    for cluster_id in range(3):
-        group_name = f"Group {cluster_id}"
-        group_info = f"Group {cluster_id} information"
-        group_data = {"group_id": cluster_id, "group_name": group_name, "group_info": group_info}
-        groups.insert_one(group_data)
-
-# group_ids 리스트를 채웁니다.
-for cluster_id in range(3):
-    group_ids.append(cluster_id)
-
-# 클러스터링된 사용자들을 그룹 멤버 테이블에 추가합니다.
-group_member_id = 0
-
-# 그룹 멤버 테이블이 비어 있는지 확인합니다.
-if group_members.count_documents({}) == 0:
-    for index, row in user_predicted_ratings.iterrows():
-        user_id = row["user_id"]
-        cluster_id = int(row["cluster"])
-        group_id = group_ids[cluster_id]
-        group_member_data = {"group_member_id": group_member_id, "group_id": group_id, "user_id": user_id}
-        group_members.insert_one(group_member_data)
-        group_member_id += 1
-
-
-# groups 테이블의 내용을 출력합니다.
-print("Groups Table:")
-groups_data = groups.find()
-for group_data in groups_data:
-    print(group_data)
-
-# group_members 테이블의 내용을 출력합니다.
-print("Group Members Table:")
-group_members_data = group_members.find()
-for gm_data in group_members_data:
-    print(gm_data)

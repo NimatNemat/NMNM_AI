@@ -125,7 +125,7 @@ print(restaurant_ids)
 
 
 # 지정한 userId(0~4)
-specified_userId = 4
+specified_userId = "0"
 
 # restaurant_ids를 사용하여 rating 값을 5로 설정
 for restaurant_id in restaurant_ids:

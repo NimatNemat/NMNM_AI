@@ -1,24 +1,25 @@
 import pymongo
-from bson.objectid import ObjectId
+import random
+from datetime import datetime, timedelta
 client = pymongo.MongoClient("mongodb+srv://dongun3m:13792346asd@seondongun.cvaxniv.mongodb.net/test")
-db = client["restaurant_db"]
-restaurant_collection = db["groups_table"] # "restaurant_table"이라는 새 컬렉션을 생성합니다.
-user_table = db["user_table"]
+db = client["restaurant_db2"]
+restaurant_table = db["restaurant_table"]
 
-cursor = restaurant_collection.find()
+fields_to_check = ["address", "roadAddress", "number", "businessHours", "tags", "imageFile"]
 
+# 모든 레스토랑 문서를 순회하며 필드 값을 확인하고 필요한 경우 업데이트합니다.
+for restaurant in restaurant_table.find():
+    update_fields = {}
 
-user_table.update_many(
-    {},
-    {
-        "$set": {
-            "profileImage": "None"
-        }
-    }
-)
+    for field in fields_to_check:
+        if restaurant[field] == "None":
+            update_fields[field] = None
 
-
-
+    if update_fields:
+        restaurant_table.update_one(
+            {'_id': restaurant["_id"]},
+            {'$set': update_fields}
+        )
 '''
 #특정 칼럼 타입 변경 코드
 for document in cursor:

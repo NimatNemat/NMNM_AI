@@ -263,6 +263,7 @@ sejong_univ_coord = (37.550017, 127.074043)
 
 if restaurant_collection.count_documents({}) == 0:
 # 페이지네이션과 함께 API 요청을 보냅니다.
+    j=0
     # 검색할 키워드 별로 카카오맵 API를 활용한 검색을 진행 후 식당 테이블에 데이터 저장
     for x,y in zip(xs,ys):
         params["x"] = x;
