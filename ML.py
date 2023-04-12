@@ -11,7 +11,7 @@ def get_user_rating_table():
     for row in user_rating_table.find():
         data.append(row)
     return data
-
+#hello
 # 코사인 유사도를 계산하는 함수
 def cosine_similarity(a, b):
     norm_a = np.linalg.norm(a)
