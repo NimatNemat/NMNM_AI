@@ -2,10 +2,19 @@ from flask import Flask, request, jsonify
 from pymongo import MongoClient
 import pandas as pd
 import numpy as np
+from bson import json_util
+import json
+
 client = MongoClient("mongodb+srv://dongun3m:13792346asd@seondongun.cvaxniv.mongodb.net/test")
 db = client["restaurant_db2"]
 user_table = db['user_table']
 user_rating_table = db['user_rating_table']
+restaurant_table = db['restaurant_table']
+
+
+
+def jsonify_with_objectid(data):
+    return json.loads(json_util.dumps(data))
 
 
 # 데이터베이스에서 사용자 평점 테이블을 가져오는 함수
@@ -24,6 +33,14 @@ def cosine_similarity(a, b):
         return 0
 
     return np.dot(a, b) / (norm_a * norm_b)
+
+def get_restaurant_by_id(restaurant_id):
+    restaurant = restaurant_table.find_one({'restaurantId': restaurant_id})
+    if restaurant is None:
+        return {"error": f"Could not find restaurant with id {restaurant_id}"}
+    else:
+        return restaurant
+
 
 def create_new_user_ratings(user_ids, user_rating_table):
     user_rating_data = get_user_rating_table(user_rating_table)
@@ -93,7 +110,7 @@ def predict_user_ratings(user_ids,user_rating_table):
 
 app = Flask(__name__)
 
-@app.route('/predict_ratings', methods=['POST'])
+@app.route('/thirdRecommend', methods=['POST'])
 def predict_ratings():
     user_ids = request.json.get('user_ids', [])
 
@@ -103,16 +120,15 @@ def predict_ratings():
     predicted_ratings = predict_user_ratings(user_ids, user_rating_table)
     predicted_ratings_only = predicted_ratings.dropna(subset=['rating'])
     sorted_predicted_ratings = predicted_ratings_only.sort_values(by='rating', ascending=False)
-    third_recommend = sorted_predicted_ratings.index.tolist()
+    restaurant_ids = sorted_predicted_ratings.index.tolist()
 
-    new_user_ratings = create_new_user_ratings(user_ids, user_rating_table)
+    # 레스토랑 아이디를 레스토랑 객체로 변환
+    recommended_restaurants = [get_restaurant_by_id(restaurant_id) for restaurant_id in restaurant_ids]
 
-    response = {
-        "new_user_ratings": new_user_ratings.to_dict(),
-        "predicted_ratings": predicted_ratings.to_dict(),
-        "third_recommend": third_recommend
-    }
-    return jsonify(response), 200
+    # None 값을 필터링
+    recommended_restaurants = [restaurant for restaurant in recommended_restaurants if restaurant is not None]
+
+    return jsonify_with_objectid(recommended_restaurants), 200
 
 
 if __name__ == '__main__':
