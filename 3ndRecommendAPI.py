@@ -4,8 +4,9 @@ import pandas as pd
 import numpy as np
 from bson import json_util
 import json
+from fastapi import FastAPI, Request
 
-client = MongoClient("mongodb+srv://dongun3m:13792346asd@seondongun.cvaxniv.mongodb.net/test")
+client = MongoClient("mongodb+srv://dongun3m:13792346asd@seondongun.cvaxniv.mongodb.net/test?retryWrites=true&w=majority&tlsAllowInvalidCertificates=true")
 db = client["restaurant_db2"]
 user_table = db['user_table']
 user_rating_table = db['user_rating_table']
@@ -108,14 +109,15 @@ def predict_user_ratings(user_ids,user_rating_table):
 
 
 
-app = Flask(__name__)
+app = FastAPI()
 
-@app.route('/thirdRecommend', methods=['POST'])
-def predict_ratings():
-    user_ids = request.json.get('user_ids', [])
+@app.post('/thirdRecommend')
+async def predict_ratings(request: Request):
+    json_data = await request.json()
+    user_ids = json_data.get('user_ids', [])
 
     if not user_ids:
-        return jsonify({"error": "User IDs are required"}), 400
+        return {"error": "User IDs are required"}, 400
 
     predicted_ratings = predict_user_ratings(user_ids, user_rating_table)
     predicted_ratings_only = predicted_ratings.dropna(subset=['rating'])
@@ -132,4 +134,5 @@ def predict_ratings():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    import uvicorn
+    uvicorn.run(app, host='3.39.232.5', port=5000)
