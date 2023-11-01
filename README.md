@@ -12,6 +12,6 @@ https://www.youtube.com/watch?v=uyXTeoq9q4k&list=PLMr9Py20DqB8j8IIyIVHf9FBwlVhQT
 <br>  
 
 ## [핵심 구현 코드]
-그룹 별 추천(1차 추천) : Recommend/1stR.py 
+그룹 별 추천(1차 추천) : https://github.com/Seon-dongun/NimatNemat/NMNM_AI/blob/main/Recommend/1stR.py 
 사용자 별 추천(2차 추천) :  
 함께 먹기 추천(3차 추천) :  
