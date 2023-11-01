@@ -11,6 +11,12 @@ https://www.youtube.com/watch?v=uyXTeoq9q4k&list=PLMr9Py20DqB8j8IIyIVHf9FBwlVhQT
 
 <br>  
 
+## [구성]
+추천 로직과 관련한 코드들은 Recommend 폴더에 넣어두었습니다.  
+데이터베이스 업데이트 로직과 관련한 코드들은 TableUpdate 폴더에 넣어두었습니다.  
+
+<br>  
+
 ## [핵심 구현 코드]
 그룹 별 추천(1차 추천) : https://github.com/NimatNemat/NMNM_AI/blob/main/Recommend/1stR.py  
 사용자 별 추천(2차 추천) : https://github.com/NimatNemat/NMNM_AI/blob/main/Recommend/2ndR.py  
