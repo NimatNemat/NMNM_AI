@@ -8,7 +8,9 @@
 
 ## [프로젝트 소개 영상]  
 https://www.youtube.com/watch?v=uyXTeoq9q4k&list=PLMr9Py20DqB8j8IIyIVHf9FBwlVhQTntM&index=8  
+
 <br>  
+
 ## [주요 사항]
 그룹 별 추천(1차 추천) :  
 사용자 별 추천(2차 추천) :  
